@@ -1,0 +1,119 @@
+hadoop fs -put data sourygna/datosLogs
+hadoop jar target/hadoop-java-mrdp-*-job.jar sourygna/datosLogs sourygna/output/analisisLogs
+
+Ejercicio: Análisis de fcheros de logs:
+En este ejercicio vais a tener que analizar varios ficheros de logs de mi ordenador:
+ls -ltrh datosEvaluacion/
+total 1,7M
+-rw-r----- 1 sourygna sourygna 74K nov 30 07:55 syslog.6.gz
+-rw-r----- 1 sourygna sourygna 75K nov 30 07:55 syslog.5.gz
+-rw-r----- 1 sourygna sourygna 95K nov 30 07:55 syslog.4.gz
+-rw-r----- 1 sourygna sourygna 75K nov 30 07:55 syslog.3.gz
+-rw-r----- 1 sourygna sourygna 51K nov 30 07:55 syslog.2.gz
+-rw-r----- 1 sourygna sourygna 615K nov 30 07:55 syslog.1
+-rw-r----- 1 sourygna sourygna 602K nov 30 07:55 syslog
+-rw-r----- 1 sourygna sourygna 74K nov 30 07:55 syslog.7.gz
+Se tratan de unos ficheros de logs Linux. A continuación os muestro unas líneas de ejemplo de uno
+de los ficheros:
+Nov 29 07:54:07 ktalina kernel: [ 17.014481] EXT4-fs (sda6): mounted filesystem with ordered
+data mode. Opts: (null)
+Nov 29 07:54:07 ktalina kernel: [ 17.040806] EXT4-fs (sda7): mounted filesystem with ordered
+data mode. Opts: (null)
+Nov 29 07:54:08 ktalina ntpdate[1024]: Can't find host 0.ubuntu.pool.ntp.org: System error (-11)
+Nov 29 07:54:08 ktalina ntpdate[1024]: Can't find host 1.ubuntu.pool.ntp.org: System error (-11)
+Nov 29 07:54:08 ktalina ntpdate[1024]: Can't find host 2.ubuntu.pool.ntp.org: System error (-11)
+Nov 29 07:54:08 ktalina ntpdate[1024]: Can't find host 3.ubuntu.pool.ntp.org: System error (-11)
+Nov 29 07:54:08 ktalina ntpdate[1024]: Can't find host ntp.ubuntu.com: System error (-11)
+Nov 29 07:54:08 ktalina ntpdate[1024]: no servers can be used, exiting
+Nov 29 07:54:08 ktalina avahi-daemon[1053]: Found user 'avahi' (UID 111) and group 'avahi'
+(GID 118).
+Nov 29 07:54:08 ktalina avahi-daemon[1053]: Successfully dropped root privileges.
+Nov 29 07:54:08 ktalina avahi-daemon[1053]: avahi-daemon 0.6.31 starting up.
+Nov 29 07:54:08 ktalina avahi-daemon[1053]: Successfully called chroot().
+Nov 29 07:54:08 ktalina avahi-daemon[1053]: Successfully dropped remaining capabilities.
+Nov 29 07:54:08 ktalina ntpd[1051]: ntpd 4.2.6p5@1.2349-o Thu Apr 4 22:25:14 UTC 2014 (1)
+Nov 29 07:54:08 ktalina ntpd[1064]: proto: precision = 0.101 usec
+Nov 29 07:54:08 ktalina ntpd[1064]: ntp_io: estimated max descriptors: 1024, initial socket
+boundary: 16
+Nov 29 07:54:08 ktalina ntpd[1064]: Listen and drop on 0 v4wildcard 0.0.0.0 UDP 123
+Nov 29 08:01:48 ktalina colord: device removed: xrandr-Seiko Epson Corporation
+Nov 29 08:01:48 ktalina colord: Profile removed: icc-bbe1a40d69e812e21f3696aaeed90709
+Nov 29 08:01:48 ktalina gnome-session[2752]: CRITICAL: gsm_manager_set_phase: assertion
+`GSM_IS_MANAGER (manager)' failed
+Nov 29 14:52:54 ktalina kernel: imklog 5.8.11, log source = /proc/kmsg started.
+Estos ficheros capturan mucha información del sistema operativo Linux: cuando arranca, cuando se
+apaga, los programas que se ejecutan etc.
+El formato de las líneas de logs es el formato típico del gestor de logs syslog de Linux:
+• la fecha del evento
+• la hora
+• el nombre del ordenador (siempre ktalina en nuestro caso)
+• el nombre del componente que ha generado el evento de logs. En las líneas de ejemplo más
+arriba, se ha puesto este número en negrito. A veces el nombre del componente está seguido
+por el PID entre crochetes.
+• El propio mensaje de log
+Queremos escribir un job MapReduce que permita saber cuantos eventos de logs generan cada
+componente cada hora. Por ejemplo, si tuviéramos que ejecutar el programa con los datos
+anteriores, tendríamos como resultados (aunque esta información no aparezca en los logs,
+supondremos que el año es 2014):
+[29/11/2014-14] kernel:1
+[29/11/2014-08] gnome-session:1,colord:2
+[29/11/2014-07] kernel:2,ntpd:4,avahi-daemon:5,ntpdate:6
+Vemos que cada línea de salida está compuesta por:
+• Una fecha en formato DD/MM/AAAA, un guión medio y la hora
+• Una tabulación
+• Una lista de pares “componente:número de líneas de logs asociadas a este componente en
+esta hora”. Vemos que esta lista esta ordenada de tal forma que los componentes que ocurren
+más veces en esta hora aparecen último. Esta ordenación se puede realizar totalmente en la
+fase reduce (es decir, NO hace falta implementar un mecanismo de ordenación tal y como lo
+hemos visto en el secondary sort).
+Otros requisitos del job son:
+• Queremos que todas los resultados de un mismo día estén dentro de el mismo fichero de
+salida "part-r-000**". Por ejemplo: todos los eventos del día 26/11 serán dentro del fichero
+part-r-0000, todas los del 27/11 dentro de part-r-0001... (bonus: cambiar el nombre del
+fichero para que este nombre contenga la información del día. Por ejemplo "part-dia-26*".
+Esto se puede hacer con los MultipleOutputs)
+• Dentro de un mismo fichero, las horas están ordenadas al revés. Si mirad el ejemplo
+anterior, veis que primero aparece la línea de las 14H, luego de las 8H y finalmente de las
+7H
+• Queremos descartar cualquier componente que tenga “vmet” (por ejemplo “vmnetBridge”):
+estos componentes no deberán aparecer en los resultados.
+• Como intuimos que habrá muchas líneas líneas de logs generadas por el evento “kernel”, se
+deberá asignar una tarea reduce específica para los eventos “kernel” de cada día. Es decir:
+por un mismo día de logs, deberá haber 2 tareas reduce: una tarea para los eventos “kernel”
+y otra tarea para el resto de los eventos (los alumnos que deciden hacer el bonus deberán
+también tener esto en cuenta en el nombre de los ficheros de salida).
+Por lo tanto, la solución real para el ejemplo anterior sería 2 ficheros. Un primero fichero
+compuesto por los eventos “kernel”:
+[29/11/2014-14] kernel:1
+[29/11/2014-07] kernel:2
+Y otro fichero por el resto de eventos:
+[29/11/2014-08] gnome-session:1,colord:2
+[29/11/2014-07] ntpd:4,avahi-daemon:5,ntpdate:6
+• Se optimizará la fase map para no emitir demasiados datos intermedios. Se deberá justificar
+estas optimizaciones en el PDF entregado.
+• En el driver, al finalizar el job MapReduce, se mostrará en la pantalla (usando
+System.out.println) el número de líneas de logs asociadas a cada componente en TODOS los
+ficheros de logs. A modo de ejemplo, podría obtener:
+kernel:2430184
+ntpdate:49230
+ntpd:32793
+… Esto significaría que hay unos 2,4 millones de líneas de logs del componente “
+kernel” en los
+8 ficheros de logs, unas 49000 líneas para “ntpdate” etc. Otra vez los componentes se
+ordenarán por número descendente de apariciones.
+Se deberá colocar los contadores MapReduce de forma óptima en el código para no solicitar
+demasiado al ApplicationManager.
+Los pasos a seguir para hacer el examen son:
+1) Echar un ojo a todos los ficheros de logs. Os recuerdo que eso suele una de las primeras cosas
+que hacer cuando afrontais un problema Big Data: echar un ojo a los datos para tener una idea de su
+formato, su estructura, su distribución etc. Para ello, podéis usar los comandos:
+head fichero (para ver el principio de un fichero)
+tail fichero (para leer el final)
+less fichero (ver manual de ejercicio "administración de Hadoop" para más información acerca de
+este comando)
+Si os molesta el formato "gzip" para esta tarea, podéis descomprimir un fichero con:
+gunzip fichero.gz
+2) Determinar cuantos días de logs en total vais a tratar para poder escribir el partitioner.
+3) Subir los datos a HDFS. Normalmente, MapReduce no debe tener problema en trabajar con
+ficheros comprimidos pero si os molesta podéis subir los ficheros sin comprimir.
+4) Desarrollar las clases java necesarias para el ejercicio.
