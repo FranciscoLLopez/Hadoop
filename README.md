@@ -9,7 +9,7 @@ For example , the input could be :
 122
 3.2
 
-### Execute lines second exercise
+### Execute lines
 HistogramaFlow data/lista/lista.txt lista-ord lista-final 5
 
 ## Exercise 2
