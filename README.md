@@ -9,11 +9,8 @@ For example , the input could be :
 122
 3.2
 
-### Execute lines
-hadoop fs -put data data
-hadoop jar xxxx.jar FriendsMRWritables data/friends/friends.txt sort-friends
-
-Where xxx is the generated name jar.
+### Execute lines second exercise
+HistogramaFlow data/lista/lista.txt lista-ord lista-final 5
 
 ## Exercise 2
 The friends of my friends
@@ -26,6 +23,8 @@ B C
 C D
 C H
 
+### Execute lines
+hadoop fs -put data data
+hadoop jar xxxx.jar FriendsMRWritables data/friends/friends.txt sort-friends
 
-### Execute lines second exercise
-HistogramaFlow data/lista/lista.txt lista-ord lista-final 5
+Where xxx is the generated name jar.
