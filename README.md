@@ -1,4 +1,4 @@
-# Sample 1 HADOOP & Writables
+# Hadoop-Sample: HADOOP & Writables
 ## Exercise 1
 Histogram
 ========================
